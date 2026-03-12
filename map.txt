@@ -1,0 +1,63 @@
+contact-book-app/
+├── backend/
+│   ├── app/
+│   │   ├── __init__.py          # Flask app factory
+│   │   ├── config.py            # App configuration (DB, env)
+│   │   ├── models/
+│   │   │   ├── __init__.py
+│   │   │   └── contact.py       # Contact model
+│   │   ├── routes/
+│   │   │   ├── __init__.py
+│   │   │   └── contacts.py      # All contact API routes
+│   │   ├── schemas/
+│   │   │   ├── __init__.py
+│   │   │   └── contact_schema.py # Marshmallow schema
+│   │   └── utils/
+│   │       ├── __init__.py
+│   │       └── helpers.py       # Helper functions
+│   ├── migrations/              # DB migration files
+│   ├── uploads/                 # Profile picture uploads
+│   ├── .env                     # Environment variables
+│   ├── .env.example             # Example env file
+│   ├── requirements.txt         # Python dependencies
+│   └── run.py                   # App entry point
+│
+├── frontend/
+│   ├── public/
+│   ├── src/
+│   │   ├── api/
+│   │   │   └── contactsApi.js   # All API call functions
+│   │   ├── components/
+│   │   │   ├── layout/
+│   │   │   │   ├── Sidebar.jsx
+│   │   │   │   └── Navbar.jsx
+│   │   │   ├── contacts/
+│   │   │   │   ├── ContactCard.jsx
+│   │   │   │   ├── ContactList.jsx
+│   │   │   │   ├── ContactModal.jsx
+│   │   │   │   └── ContactSearch.jsx
+│   │   │   └── ui/
+│   │   │       ├── Button.jsx
+│   │   │       ├── Toast.jsx
+│   │   │       └── Avatar.jsx
+│   │   ├── context/
+│   │   │   └── ContactContext.jsx  # Global state
+│   │   ├── hooks/
+│   │   │   └── useContacts.js      # Custom hook
+│   │   ├── pages/
+│   │   │   ├── Dashboard.jsx
+│   │   │   ├── Favorites.jsx
+│   │   │   └── Groups.jsx
+│   │   ├── utils/
+│   │   │   └── helpers.js
+│   │   ├── App.jsx
+│   │   ├── main.jsx
+│   │   └── index.css
+│   ├── .env
+│   ├── index.html
+│   ├── tailwind.config.js
+│   ├── postcss.config.js
+│   └── vite.config.js
+│
+├── .gitignore
+└── README.md
