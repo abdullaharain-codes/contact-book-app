@@ -7,8 +7,7 @@ load_dotenv()
 class Config:
     """Base configuration — all shared settings live here."""
 
-    SECRET_KEY = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
-
+    SECRET_KEY         = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER      = os.getenv('UPLOAD_FOLDER', 'uploads')
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
@@ -25,12 +24,6 @@ class DevelopmentConfig(Config):
     DEBUG   = True
     TESTING = False
 
-    DB_HOST     = os.getenv('DB_HOST', 'localhost')
-    DB_PORT     = os.getenv('DB_PORT', '3306')
-    DB_NAME     = os.getenv('DB_NAME', 'contact_book')
-    DB_USER     = os.getenv('DB_USER', 'root')
-    DB_PASSWORD = os.getenv('DB_PASSWORD', '')
-
     SQLALCHEMY_DATABASE_URI = (
         f"mysql+pymysql://{os.getenv('DB_USER', 'root')}:"
         f"{os.getenv('DB_PASSWORD', '')}@"
@@ -41,15 +34,28 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production — uses PostgreSQL DATABASE_URL from Render."""
+    """Production — uses Railway MySQL env vars."""
     DEBUG   = False
     TESTING = False
 
-    # Render provides DATABASE_URL — fix legacy postgres:// prefix
-    SQLALCHEMY_DATABASE_URI = os.getenv('DATABASE_URL', '').replace(
-        'postgres://', 'postgresql://'
-    )
+    # Railway provides MYSQL_URL directly — use it if available,
+    # otherwise fall back to individual variables
+    @staticmethod
+    def _build_db_uri():
+        # Option 1: full URL from Railway
+        mysql_url = os.getenv('MYSQL_URL') or os.getenv('MYSQL_PUBLIC_URL')
+        if mysql_url:
+            return mysql_url.replace('mysql://', 'mysql+pymysql://', 1)
 
+        # Option 2: individual Railway variables
+        host     = os.getenv('MYSQLHOST', '')
+        port     = os.getenv('MYSQLPORT', '3306')
+        user     = os.getenv('MYSQLUSER', '')
+        password = os.getenv('MYSQLPASSWORD', '')
+        database = os.getenv('MYSQLDATABASE', '')
+        return f"mysql+pymysql://{user}:{password}@{host}:{port}/{database}"
+
+    SQLALCHEMY_DATABASE_URI = _build_db_uri.__func__()
     FRONTEND_URL = os.getenv('FRONTEND_URL', '*')
 
     @classmethod
@@ -63,7 +69,6 @@ class TestingConfig(Config):
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
 
 
-# ── Config map used by create_app() ───────────────────────
 config = {
     'development': DevelopmentConfig,
     'production':  ProductionConfig,
