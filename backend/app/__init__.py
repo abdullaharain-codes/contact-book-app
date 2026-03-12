@@ -17,23 +17,33 @@ def create_app(config_object=None):
     if config_object:
         app.config.from_object(config_object)
     else:
-        app.config.from_object('app.config.DevelopmentConfig')
+        # ✅ Auto-select config based on FLASK_ENV
+        env = os.environ.get('FLASK_ENV', 'development')
+        if env == 'production':
+            app.config.from_object('app.config.ProductionConfig')
+        else:
+            app.config.from_object('app.config.DevelopmentConfig')
 
     db.init_app(app)
     migrate.init_app(app, db)
     ma.init_app(app)
 
+    # ✅ CORS — allow * in production for Render cold starts,
+    #    use specific origin in development
+    frontend_url = app.config.get('FRONTEND_URL', 'http://localhost:3000')
     CORS(app, resources={
         r"/api/*": {
-            "origins": app.config.get('FRONTEND_URL', 'http://localhost:3000'),
+            "origins": frontend_url if frontend_url != '*' else '*',
             "methods": ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
-            "allow_headers": ["Content-Type", "Authorization"]
+            "allow_headers": ["Content-Type", "Authorization"],
+            "supports_credentials": False,
         }
     })
 
     from app.routes.contacts import contacts_bp
     app.register_blueprint(contacts_bp, url_prefix='/api/contacts')
 
+    # ✅ Create uploads folder if it doesn't exist
     upload_folder = app.config.get('UPLOAD_FOLDER', 'uploads')
     os.makedirs(upload_folder, exist_ok=True)
 
@@ -43,6 +53,10 @@ def create_app(config_object=None):
 
     @app.route('/api/health')
     def health_check():
-        return {'status': 'healthy', 'message': 'Contact Book API is running'}
+        return {
+            'status': 'healthy',
+            'message': 'Contact Book API is running',
+            'env': os.environ.get('FLASK_ENV', 'development')
+        }
 
     return app
