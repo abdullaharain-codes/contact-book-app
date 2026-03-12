@@ -39,3 +39,11 @@ class ProductionConfig(Config):
 class TestingConfig(Config):
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
+
+class ProductionConfig(Config):
+    DEBUG = False
+    TESTING = False
+    # In production, DATABASE_URL may be provided directly
+    @classmethod
+    def init_app(cls, app):
+        Config.init_app(app)
