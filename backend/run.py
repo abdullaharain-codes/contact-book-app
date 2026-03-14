@@ -4,7 +4,4 @@ from app import create_app
 app = create_app()
 
 if __name__ == '__main__':
-    # Run the Flask development server
-    # Debug mode enabled for development
-    # Port 5000 as specified
     app.run(debug=True, host='0.0.0.0', port=5000)

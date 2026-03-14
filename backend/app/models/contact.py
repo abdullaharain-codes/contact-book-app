@@ -1,18 +1,14 @@
 from app import db
 from datetime import datetime
-
-# Use plain string Enum for MySQL compatibility
 import enum
 
+
 class ContactGroup(str, enum.Enum):
-    """
-    String enum for contact groups.
-    Inheriting from str ensures correct JSON serialization.
-    """
     FAMILY  = 'family'
     FRIENDS = 'friends'
     WORK    = 'work'
     OTHER   = 'other'
+
 
 class Contact(db.Model):
     """Contact model — maps to the 'contacts' table in MySQL."""
@@ -22,10 +18,18 @@ class Contact(db.Model):
     # ── Primary Key ───────────────────────────────────────────
     id = db.Column(db.Integer, primary_key=True, autoincrement=True)
 
+    # ── Foreign Key — which user owns this contact ────────────
+    user_id = db.Column(
+        db.Integer,
+        db.ForeignKey('users.id', ondelete='CASCADE'),
+        nullable=False,
+        index=True
+    )
+
     # ── Personal Info ─────────────────────────────────────────
     first_name = db.Column(db.String(50),  nullable=False)
     last_name  = db.Column(db.String(50),  nullable=True)
-    email      = db.Column(db.String(120), unique=True, nullable=True)
+    email      = db.Column(db.String(120), nullable=True)
     phone      = db.Column(db.String(20),  nullable=True)
     address    = db.Column(db.String(200), nullable=True)
 
@@ -40,11 +44,7 @@ class Contact(db.Model):
     is_favorite = db.Column(db.Boolean, nullable=False, default=False)
 
     # Store as plain VARCHAR string — avoids MySQL enum migration issues
-    group = db.Column(
-        db.String(20),
-        nullable=False,
-        default='other'
-    )
+    group = db.Column(db.String(20), nullable=False, default='other')
 
     # ── Notes ─────────────────────────────────────────────────
     notes = db.Column(db.Text, nullable=True)
@@ -58,9 +58,9 @@ class Contact(db.Model):
         return f'<Contact {self.first_name} {self.last_name or ""}>'
 
     def to_dict(self):
-        """Serialize contact to a plain dictionary for JSON responses."""
         return {
             'id':              self.id,
+            'user_id':         self.user_id,
             'first_name':      self.first_name,
             'last_name':       self.last_name,
             'email':           self.email,
@@ -70,33 +70,27 @@ class Contact(db.Model):
             'job_title':       self.job_title,
             'profile_picture': self.profile_picture,
             'is_favorite':     self.is_favorite,
-            'group':           self.group,   # plain string, no .value needed
+            'group':           self.group,
             'notes':           self.notes,
             'created_at':      self.created_at.isoformat() if self.created_at else None,
             'updated_at':      self.updated_at.isoformat() if self.updated_at else None,
         }
 
     @classmethod
-    def get_by_group(cls, group: str):
-        """Return all contacts belonging to the given group string."""
-        return cls.query.filter_by(group=group.lower())
+    def get_by_group(cls, group: str, user_id: int):
+        return cls.query.filter_by(group=group.lower(), user_id=user_id)
 
     @classmethod
-    def get_favorites(cls):
-        """Return all contacts marked as favorite."""
-        return cls.query.filter_by(is_favorite=True)
+    def get_favorites(cls, user_id: int):
+        return cls.query.filter_by(is_favorite=True, user_id=user_id)
 
     @classmethod
-    def search(cls, query: str):
-        """
-        Search contacts across name, email, phone, company fields.
-        Uses SQL LIKE for partial matching.
-        """
+    def search(cls, query: str, user_id: int):
         if not query:
-            return cls.query
-
+            return cls.query.filter_by(user_id=user_id)
         term = f'%{query}%'
         return cls.query.filter(
+            cls.user_id == user_id,
             db.or_(
                 cls.first_name.like(term),
                 cls.last_name.like(term),

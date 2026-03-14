@@ -1,77 +1,53 @@
 import axios from 'axios';
 
-// Create axios instance
+const BASE_URL = import.meta.env.VITE_API_BASE_URL || 'http://localhost:5000/api';
+
 const api = axios.create({
-  baseURL: import.meta.env.VITE_API_BASE_URL,
-  headers: {
-    'Content-Type': 'application/json',
-  },
+  baseURL: BASE_URL,
+  timeout: 15000,
 });
 
-// ✅ FIXED: interceptor returns response.data directly
-// so all functions below get the data, not the full axios response object
+// ── Request interceptor — attach JWT token ─────────────────
+api.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem('token');
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// ── Response interceptor — unwrap data ─────────────────────
 api.interceptors.response.use(
-  (response) => response.data,  // ← unwrap here once, for ALL requests
+  (response) => response.data,
   (error) => {
-    if (error.response) {
-      console.error('API Error:', error.response.status, error.response.data);
-    } else if (error.request) {
-      console.error('No response from server');
-    } else {
-      console.error('Request error:', error.message);
+    // If 401 — token expired or invalid, clear and redirect
+    if (error.response?.status === 401) {
+      localStorage.removeItem('token');
+      window.location.href = '/login';
     }
     return Promise.reject(error);
   }
 );
 
-// ============= CONTACT API FUNCTIONS =============
-// Note: no more response.data needed — interceptor already unwraps it
+// ── Contacts API ───────────────────────────────────────────
+export const getContacts         = (params)       => api.get('/contacts/', { params });
+export const getContact          = (id)           => api.get(`/contacts/${id}`);
+export const createContact       = (data)         => api.post('/contacts/', data);
+export const updateContact       = (id, data)     => api.put(`/contacts/${id}`, data);
+export const deleteContact       = (id)           => api.delete(`/contacts/${id}`);
+export const toggleFavorite      = (id)           => api.patch(`/contacts/${id}/favorite`);
+export const searchContacts      = (params)       => api.get('/contacts/search', { params });
+export const getFavorites        = (params)       => api.get('/contacts/favorites', { params });
+export const getContactsByGroup  = (group, params) => api.get(`/contacts/groups/${group}`, { params });
+export const getStats            = ()             => api.get('/contacts/stats');
 
-export const getAllContacts = async (params = {}) => {
-  return await api.get('/contacts/', { params });
-};
-
-export const getContact = async (id) => {
-  return await api.get(`/contacts/${id}`);
-};
-
-export const createContact = async (formData) => {
-  return await api.post('/contacts/', formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-};
-
-export const updateContact = async (id, formData) => {
-  return await api.put(`/contacts/${id}`, formData, {
-    headers: { 'Content-Type': 'multipart/form-data' },
-  });
-};
-
-export const deleteContact = async (id) => {
-  return await api.delete(`/contacts/${id}`);
-};
-
-export const searchContacts = async (query, params = {}) => {
-  return await api.get('/contacts/search', {
-    params: { q: query, ...params },
-  });
-};
-
-export const toggleFavorite = async (id) => {
-  return await api.patch(`/contacts/${id}/favorite`);
-};
-
-export const getFavorites = async (params = {}) => {
-  return await api.get('/contacts/favorites', { params });
-};
-
-// ✅ Group endpoint — returns { contacts: [], pagination: {} }
-export const getContactsByGroup = async (group, params = {}) => {
-  return await api.get(`/contacts/groups/${group}`, { params });
-};
-
-export const getStats = async () => {
-  return await api.get('/contacts/stats');
-};
+// ── Auth API ───────────────────────────────────────────────
+export const registerUser        = (data)         => api.post('/auth/register', data);
+export const loginUser           = (data)         => api.post('/auth/login', data);
+export const getMe               = ()             => api.get('/auth/me');
+export const logoutUser          = ()             => api.post('/auth/logout');
 
 export default api;

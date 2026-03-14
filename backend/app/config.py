@@ -1,13 +1,15 @@
 import os
+from datetime import timedelta
 from dotenv import load_dotenv
 
 load_dotenv()
 
 
 class Config:
-    """Base configuration — all shared settings live here."""
-
     SECRET_KEY         = os.getenv('SECRET_KEY', 'dev-secret-key-change-in-production')
+    JWT_SECRET_KEY     = os.getenv('JWT_SECRET_KEY', os.getenv('SECRET_KEY', 'jwt-secret-key'))
+    JWT_ACCESS_TOKEN_EXPIRES = timedelta(days=7)
+
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     UPLOAD_FOLDER      = os.getenv('UPLOAD_FOLDER', 'uploads')
     MAX_CONTENT_LENGTH = int(os.getenv('MAX_CONTENT_LENGTH', 16 * 1024 * 1024))
@@ -20,7 +22,6 @@ class Config:
 
 
 class DevelopmentConfig(Config):
-    """Local development — uses MySQL via .env file."""
     DEBUG   = True
     TESTING = False
 
@@ -34,20 +35,14 @@ class DevelopmentConfig(Config):
 
 
 class ProductionConfig(Config):
-    """Production — uses Railway MySQL env vars."""
     DEBUG   = False
     TESTING = False
 
-    # Railway provides MYSQL_URL directly — use it if available,
-    # otherwise fall back to individual variables
     @staticmethod
     def _build_db_uri():
-        # Option 1: full URL from Railway
         mysql_url = os.getenv('MYSQL_URL') or os.getenv('MYSQL_PUBLIC_URL')
         if mysql_url:
             return mysql_url.replace('mysql://', 'mysql+pymysql://', 1)
-
-        # Option 2: individual Railway variables
         host     = os.getenv('MYSQLHOST', '')
         port     = os.getenv('MYSQLPORT', '3306')
         user     = os.getenv('MYSQLUSER', '')
@@ -64,7 +59,6 @@ class ProductionConfig(Config):
 
 
 class TestingConfig(Config):
-    """Testing — uses in-memory SQLite."""
     TESTING = True
     SQLALCHEMY_DATABASE_URI = 'sqlite:///:memory:'
 

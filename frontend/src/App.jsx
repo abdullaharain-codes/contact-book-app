@@ -1,77 +1,80 @@
-import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import React, { useState } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { ContactProvider } from './context/ContactContext';
+import { AuthProvider } from './context/AuthContext';
+import PrivateRoute from './components/layout/PrivateRoute';
+import Sidebar from './components/layout/Sidebar';
+import Navbar from './components/layout/Navbar';
 import Dashboard from './pages/Dashboard';
 import Favorites from './pages/Favorites';
 import Groups from './pages/Groups';
-import Sidebar from './components/layout/Sidebar';
-import Navbar from './components/layout/Navbar';
-import Toast from './components/ui/Toast';
-import { useState } from 'react';
+import Login from './pages/Login';
+import Register from './pages/Register';
 
-function App() {
+// ── Authenticated layout ───────────────────────────────────
+const AppLayout = ({ children }) => {
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [showAddModal, setShowAddModal] = useState(false);
-
-  const handleMenuClick = () => {
-    setSidebarOpen(true);
-  };
-
-  const handleCloseSidebar = () => {
-    setSidebarOpen(false);
-  };
 
   return (
-    <ContactProvider>
-      <Router>
-        <div className="flex min-h-screen bg-dark text-white">
-          <Sidebar 
-            isOpen={sidebarOpen} 
-            onClose={handleCloseSidebar}
-          />
-          
-          {/* Main Content */}
-          <div className="flex-1 flex flex-col md:ml-[260px] w-full">
-            <Navbar 
-              onAddContact={() => setShowAddModal(true)}
-              onMenuClick={handleMenuClick}
-            />
-            
-            <main className="flex-1 overflow-y-auto p-4 md:p-6">
-              <Routes>
-                <Route 
-                  path="/" 
-                  element={
-                    <Dashboard 
-                      showAddModal={showAddModal} 
-                      setShowAddModal={setShowAddModal} 
-                    />
-                  } 
-                />
-                <Route 
-                  path="/favorites" 
-                  element={
-                    <Favorites 
-                      showAddModal={showAddModal} 
-                      setShowAddModal={setShowAddModal} 
-                    />
-                  } 
-                />
-                <Route 
-                  path="/groups" 
-                  element={
-                    <Groups 
-                      showAddModal={showAddModal} 
-                      setShowAddModal={setShowAddModal} 
-                    />
-                  } 
-                />
-              </Routes>
-            </main>
-          </div>
-        </div>
-        <Toast />
-      </Router>
-    </ContactProvider>
+    <div className="flex h-screen bg-[#0f172a] overflow-hidden">
+      {/* Mobile overlay */}
+      {sidebarOpen && (
+        <div
+          className="fixed inset-0 bg-black/50 z-20 md:hidden"
+          onClick={() => setSidebarOpen(false)}
+        />
+      )}
+
+      {/* Sidebar — fixed width on desktop, slide-in on mobile */}
+      <Sidebar isOpen={sidebarOpen} onClose={() => setSidebarOpen(false)} />
+
+      {/* Main content — takes remaining space */}
+      <div className="flex-1 flex flex-col overflow-hidden md:ml-0">
+        <Navbar onMenuClick={() => setSidebarOpen(prev => !prev)} />
+        <main className="flex-1 overflow-y-auto p-4 md:p-6">
+          {children}
+        </main>
+      </div>
+    </div>
+  );
+};
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <Routes>
+          {/* Public */}
+          <Route path="/login"    element={<Login />} />
+          <Route path="/register" element={<Register />} />
+
+          {/* Protected */}
+          <Route path="/" element={
+            <PrivateRoute>
+              <ContactProvider>
+                <AppLayout><Dashboard /></AppLayout>
+              </ContactProvider>
+            </PrivateRoute>
+          } />
+          <Route path="/favorites" element={
+            <PrivateRoute>
+              <ContactProvider>
+                <AppLayout><Favorites /></AppLayout>
+              </ContactProvider>
+            </PrivateRoute>
+          } />
+          <Route path="/groups" element={
+            <PrivateRoute>
+              <ContactProvider>
+                <AppLayout><Groups /></AppLayout>
+              </ContactProvider>
+            </PrivateRoute>
+          } />
+
+          <Route path="*" element={<Navigate to="/" replace />} />
+        </Routes>
+      </AuthProvider>
+    </Router>
   );
 }
 

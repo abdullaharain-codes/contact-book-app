@@ -1,148 +1,82 @@
-import React, { useState, useEffect } from 'react';
-import { useLocation } from 'react-router-dom';
-import useContacts from '../../hooks/useContacts';
-import Button from '../ui/Button';
+import React, { useState, useContext } from 'react';
+import { useNavigate } from 'react-router-dom';
+import AuthContext from '../../context/AuthContext';
 
-const MenuIcon = () => (
-  <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
-  </svg>
-);
+const Navbar = ({ onMenuClick }) => {
+  const { user, logout }           = useContext(AuthContext);
+  const [showUserMenu, setShowUserMenu] = useState(false);
+  const navigate = useNavigate();
 
-const SearchIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-  </svg>
-);
-
-const PlusIcon = () => (
-  <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
-  </svg>
-);
-
-const CloseIcon = () => (
-  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-  </svg>
-);
-
-const PAGE_TITLES = {
-  '/':          'Dashboard',
-  '/favorites': 'Favorites',
-  '/groups':    'Groups',
-};
-
-const Navbar = ({ onAddContact, onMenuClick }) => {
-  const location = useLocation();
-  const { searchQuery, searchContactsQuery, loading } = useContacts();
-  const [localSearch,       setLocalSearch]       = useState(searchQuery);
-  const [showMobileSearch,  setShowMobileSearch]  = useState(false);
-
-  const pageTitle = PAGE_TITLES[location.pathname] || 'Contact Book';
-
-  // Debounced search
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      if (localSearch !== searchQuery) searchContactsQuery(localSearch);
-    }, 500);
-    return () => clearTimeout(timer);
-  }, [localSearch]);
-
-  const handleClearMobileSearch = () => {
-    setShowMobileSearch(false);
-    setLocalSearch('');
-    searchContactsQuery('');
+  const handleLogout = () => {
+    setShowUserMenu(false);
+    logout();
+    navigate('/login');
   };
 
   return (
-    <nav className="bg-[#1e293b] border-b border-[#334155] px-4 md:px-6 py-3 md:py-4">
-      <div className="flex items-center gap-3">
+    <header className="bg-[#1e293b] border-b border-[#334155] px-4 h-14 flex items-center gap-3 flex-shrink-0">
 
-        {/* Hamburger — mobile only */}
+      {/* Hamburger — mobile only */}
+      <button
+        onClick={onMenuClick}
+        className="md:hidden text-[#94a3b8] hover:text-white w-10 h-10
+                   flex items-center justify-center rounded-lg hover:bg-[#0f172a] transition-colors"
+      >
+        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 6h16M4 12h16M4 18h16" />
+        </svg>
+      </button>
+
+      {/* Title — mobile only */}
+      <span className="md:hidden text-white font-semibold text-sm flex-1">Contact Book</span>
+
+      {/* Spacer — desktop */}
+      <div className="hidden md:flex flex-1" />
+
+      {/* User menu */}
+      <div className="relative ml-auto">
         <button
-          onClick={onMenuClick}
-          className="text-[#94a3b8] hover:text-white transition-colors md:hidden flex-shrink-0 p-1"
-          aria-label="Open menu"
+          onClick={() => setShowUserMenu(p => !p)}
+          className="flex items-center gap-2 h-10 px-2 rounded-lg
+                     hover:bg-[#0f172a] transition-colors"
         >
-          <MenuIcon />
+          <div className="w-8 h-8 rounded-full bg-[#6366f1] flex items-center justify-center
+                          text-white text-sm font-semibold flex-shrink-0">
+            {user?.name?.charAt(0).toUpperCase() || 'U'}
+          </div>
+          <span className="hidden md:block text-sm text-white font-medium max-w-[120px] truncate">
+            {user?.name || 'User'}
+          </span>
+          <svg className="hidden md:block w-4 h-4 text-[#94a3b8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+          </svg>
         </button>
 
-        {/* Page title — hidden on mobile when search is expanded */}
-        <h1 className={`text-xl md:text-2xl font-semibold text-white truncate flex-shrink-0
-          ${showMobileSearch ? 'hidden' : 'block'} md:block`}>
-          {pageTitle}
-        </h1>
-
-        {/* Spacer */}
-        <div className="flex-1" />
-
-        {/* Desktop search */}
-        <div className="hidden md:block relative w-64">
-          <span className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-[#94a3b8]">
-            <SearchIcon />
-          </span>
-          <input
-            type="text"
-            placeholder="Search contacts..."
-            value={localSearch}
-            onChange={(e) => setLocalSearch(e.target.value)}
-            disabled={loading}
-            className="w-full pl-10 pr-3 py-2 bg-[#0f172a] border border-[#334155] rounded-lg
-                       text-white placeholder-[#94a3b8] focus:outline-none focus:ring-2
-                       focus:ring-[#6366f1] focus:border-transparent transition-colors"
-          />
-        </div>
-
-        {/* Mobile search — expands inline */}
-        {showMobileSearch ? (
-          <div className="flex items-center gap-2 flex-1 md:hidden">
-            <div className="relative flex-1">
-              <input
-                type="text"
-                placeholder="Search..."
-                value={localSearch}
-                onChange={(e) => setLocalSearch(e.target.value)}
-                autoFocus
-                disabled={loading}
-                className="w-full pl-3 pr-8 py-2 bg-[#0f172a] border border-[#334155] rounded-lg
-                           text-white placeholder-[#94a3b8] focus:outline-none focus:ring-2
-                           focus:ring-[#6366f1] focus:border-transparent transition-colors text-sm"
-              />
+        {showUserMenu && (
+          <>
+            <div className="fixed inset-0 z-10" onClick={() => setShowUserMenu(false)} />
+            <div className="absolute right-0 mt-2 w-52 bg-[#1e293b] border border-[#334155]
+                            rounded-xl shadow-2xl z-20 overflow-hidden">
+              <div className="px-4 py-3 border-b border-[#334155]">
+                <p className="text-white text-sm font-medium truncate">{user?.name}</p>
+                <p className="text-[#94a3b8] text-xs truncate">{user?.email}</p>
+              </div>
               <button
-                onClick={handleClearMobileSearch}
-                className="absolute right-2 top-1/2 -translate-y-1/2 text-[#94a3b8] hover:text-white"
+                onClick={handleLogout}
+                className="w-full flex items-center gap-3 px-4 py-3 text-red-400
+                           hover:bg-red-500/10 transition-colors text-sm"
               >
-                <CloseIcon />
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2}
+                    d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                </svg>
+                Sign Out
               </button>
             </div>
-          </div>
-        ) : (
-          /* Mobile search toggle button */
-          <button
-            onClick={() => setShowMobileSearch(true)}
-            className="text-[#94a3b8] hover:text-white p-2 md:hidden"
-            aria-label="Search"
-          >
-            <SearchIcon />
-          </button>
+          </>
         )}
-
-        {/* Add Contact button
-            Desktop: full text | Mobile: icon only */}
-        <button
-          onClick={onAddContact}
-          className="flex items-center gap-2 bg-[#6366f1] hover:bg-[#4f46e5] text-white
-                     rounded-lg transition-colors duration-200 font-medium flex-shrink-0
-                     px-2 py-2 md:px-4 md:py-2 min-w-[40px] min-h-[40px] justify-center"
-          aria-label="Add contact"
-        >
-          <PlusIcon />
-          <span className="hidden md:inline text-sm">Add Contact</span>
-        </button>
-
       </div>
-    </nav>
+    </header>
   );
 };
 

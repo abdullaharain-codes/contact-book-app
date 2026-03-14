@@ -1,6 +1,8 @@
 from flask import Blueprint, jsonify, request, current_app, send_from_directory
+from flask_jwt_extended import jwt_required, get_jwt_identity
 from app import db
 from app.models.contact import Contact
+from app.models.user import User
 from app.schemas.contact_schema import contact_schema, contacts_schema
 from app.utils.helpers import (
     allowed_file, save_profile_picture,
@@ -8,26 +10,19 @@ from app.utils.helpers import (
 )
 import os
 
-# Blueprint registered in app/__init__.py with url_prefix='/api/contacts'
 contacts_bp = Blueprint('contacts', __name__)
 
-# Valid group values — must match database values
 VALID_GROUPS = ['family', 'friends', 'work', 'other']
 
 
-# ── Helper Functions ───────────────────────────────────────────────────────────
+# ── Helpers ────────────────────────────────────────────────────────────────────
+
+def get_current_user_id():
+    return int(get_jwt_identity())
+
 
 def validate_group(group_name):
     return group_name in VALID_GROUPS
-
-
-def validate_email_unique(email, exclude_id=None):
-    if not email:
-        return True
-    query = Contact.query.filter_by(email=email)
-    if exclude_id:
-        query = query.filter(Contact.id != exclude_id)
-    return query.first() is None
 
 
 def handle_profile_picture_upload(request_files, old_filename=None):
@@ -90,35 +85,47 @@ def get_uploaded_file(filename):
 
 
 # ── GET /api/contacts/stats ────────────────────────────────────────────────────
-# ⚠️ MUST be defined BEFORE /<int:contact_id> routes to avoid route conflicts
 
 @contacts_bp.route('/stats', methods=['GET'])
+@jwt_required()
 def get_contact_stats():
     try:
-        total_contacts  = Contact.query.count()
-        total_favorites = Contact.query.filter_by(is_favorite=True).count()
+        uid = get_current_user_id()
+        from datetime import datetime, timedelta
+        week_ago = datetime.utcnow() - timedelta(days=7)
+
+        total_contacts  = Contact.query.filter_by(user_id=uid).count()
+        total_favorites = Contact.query.filter_by(user_id=uid, is_favorite=True).count()
+        recent          = Contact.query.filter(
+            Contact.user_id == uid,
+            Contact.created_at >= week_ago
+        ).count()
         groups = {
-            g: Contact.query.filter_by(group=g).count()
+            g: Contact.query.filter_by(user_id=uid, group=g).count()
             for g in VALID_GROUPS
         }
         return jsonify({
+            'total':           total_contacts,
             'total_contacts':  total_contacts,
             'total_favorites': total_favorites,
-            'groups':          groups
+            'favorites':       total_favorites,
+            'recent':          recent,
+            'groups':          groups,
         }), 200
     except Exception as e:
         return jsonify({'error': str(e)}), 500
 
 
 # ── GET /api/contacts/search ───────────────────────────────────────────────────
-# ⚠️ MUST be defined BEFORE /<int:contact_id> routes
 
 @contacts_bp.route('/search', methods=['GET'])
+@jwt_required()
 def search_contacts():
     try:
+        uid         = get_current_user_id()
         search_term = request.args.get('q', '').strip()
         page        = int(request.args.get('page', 1))
-        per_page    = int(request.args.get('per_page', 10))
+        per_page    = int(request.args.get('per_page', 100))
 
         if not search_term:
             return jsonify({
@@ -130,7 +137,7 @@ def search_contacts():
                 }
             }), 200
 
-        query = Contact.search(search_term)
+        query = Contact.search(search_term, uid)
         return jsonify(build_paginated_response(query, page, per_page)), 200
 
     except ValueError:
@@ -140,14 +147,15 @@ def search_contacts():
 
 
 # ── GET /api/contacts/favorites ───────────────────────────────────────────────
-# ⚠️ MUST be defined BEFORE /<int:contact_id> routes
 
 @contacts_bp.route('/favorites', methods=['GET'])
+@jwt_required()
 def get_favorites():
     try:
+        uid      = get_current_user_id()
         page     = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 10))
-        query    = Contact.get_favorites()
+        per_page = int(request.args.get('per_page', 100))
+        query    = Contact.get_favorites(uid)
         return jsonify(build_paginated_response(query, page, per_page)), 200
     except ValueError:
         return jsonify({'error': 'Invalid pagination parameters'}), 400
@@ -156,11 +164,12 @@ def get_favorites():
 
 
 # ── GET /api/contacts/groups/<group_name> ─────────────────────────────────────
-# ⚠️ MUST be defined BEFORE /<int:contact_id> routes
 
 @contacts_bp.route('/groups/<string:group_name>', methods=['GET'])
+@jwt_required()
 def get_contacts_by_group(group_name):
     try:
+        uid        = get_current_user_id()
         group_name = group_name.lower().strip()
         if not validate_group(group_name):
             return jsonify({
@@ -168,8 +177,8 @@ def get_contacts_by_group(group_name):
             }), 400
 
         page     = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 10))
-        query    = Contact.get_by_group(group_name)
+        per_page = int(request.args.get('per_page', 100))
+        query    = Contact.get_by_group(group_name, uid)
         return jsonify(build_paginated_response(query, page, per_page)), 200
 
     except ValueError:
@@ -181,12 +190,15 @@ def get_contacts_by_group(group_name):
 # ── GET /api/contacts/ ─────────────────────────────────────────────────────────
 
 @contacts_bp.route('/', methods=['GET'])
+@jwt_required()
 def get_all_contacts():
     try:
+        uid      = get_current_user_id()
         page     = int(request.args.get('page', 1))
-        per_page = int(request.args.get('per_page', 10))
+        per_page = int(request.args.get('per_page', 100))
         sort_by, order = get_sorting_params()
-        query = apply_sorting(Contact.query, sort_by, order)
+        query = Contact.query.filter_by(user_id=uid)
+        query = apply_sorting(query, sort_by, order)
         return jsonify(build_paginated_response(query, page, per_page)), 200
     except ValueError:
         return jsonify({'error': 'Invalid pagination parameters'}), 400
@@ -197,8 +209,11 @@ def get_all_contacts():
 # ── POST /api/contacts/ ────────────────────────────────────────────────────────
 
 @contacts_bp.route('/', methods=['POST'])
+@jwt_required()
 def create_contact():
     try:
+        uid = get_current_user_id()
+
         first_name = request.form.get('first_name', '').strip()
         if not first_name:
             return jsonify({'error': 'first_name is required'}), 400
@@ -206,11 +221,8 @@ def create_contact():
             return jsonify({'error': 'first_name must be 50 characters or less'}), 400
 
         email = request.form.get('email', '').strip() or None
-        if email:
-            if '@' not in email:
-                return jsonify({'error': 'Invalid email format'}), 400
-            if not validate_email_unique(email):
-                return jsonify({'error': 'Email already exists'}), 409
+        if email and '@' not in email:
+            return jsonify({'error': 'Invalid email format'}), 400
 
         phone = request.form.get('phone', '').strip() or None
         if phone and len(phone) > 20:
@@ -225,6 +237,7 @@ def create_contact():
         profile_picture = handle_profile_picture_upload(request.files)
 
         contact = Contact(
+            user_id         = uid,
             first_name      = first_name,
             last_name       = request.form.get('last_name', '').strip() or None,
             email           = email,
@@ -254,9 +267,11 @@ def create_contact():
 # ── GET /api/contacts/<id> ─────────────────────────────────────────────────────
 
 @contacts_bp.route('/<int:contact_id>', methods=['GET'])
+@jwt_required()
 def get_contact(contact_id):
     try:
-        contact = db.session.get(Contact, contact_id)
+        uid     = get_current_user_id()
+        contact = Contact.query.filter_by(id=contact_id, user_id=uid).first()
         if not contact:
             return jsonify({'error': 'Contact not found'}), 404
         return jsonify(contact_schema.dump(contact)), 200
@@ -267,9 +282,11 @@ def get_contact(contact_id):
 # ── PUT /api/contacts/<id> ─────────────────────────────────────────────────────
 
 @contacts_bp.route('/<int:contact_id>', methods=['PUT'])
+@jwt_required()
 def update_contact(contact_id):
     try:
-        contact = db.session.get(Contact, contact_id)
+        uid     = get_current_user_id()
+        contact = Contact.query.filter_by(id=contact_id, user_id=uid).first()
         if not contact:
             return jsonify({'error': 'Contact not found'}), 404
 
@@ -277,8 +294,6 @@ def update_contact(contact_id):
         if email and email != contact.email:
             if '@' not in email:
                 return jsonify({'error': 'Invalid email format'}), 400
-            if not validate_email_unique(email, contact_id):
-                return jsonify({'error': 'Email already exists'}), 409
 
         phone = request.form.get('phone', '').strip() or None
         if phone and len(phone) > 20:
@@ -300,14 +315,14 @@ def update_contact(contact_id):
                 return jsonify({'error': 'first_name cannot be empty'}), 400
             contact.first_name = first_name
 
-        if 'last_name'  in request.form: contact.last_name  = request.form.get('last_name',  '').strip() or None
-        if email        is not None:      contact.email      = email
-        if phone        is not None:      contact.phone      = phone
-        if 'address'    in request.form: contact.address    = request.form.get('address',    '').strip() or None
-        if 'company'    in request.form: contact.company    = request.form.get('company',    '').strip() or None
-        if 'job_title'  in request.form: contact.job_title  = request.form.get('job_title',  '').strip() or None
-        if 'notes'      in request.form: contact.notes      = request.form.get('notes',      '').strip() or None
-        if group        is not None:      contact.group      = group
+        if 'last_name'   in request.form: contact.last_name  = request.form.get('last_name',  '').strip() or None
+        if email         is not None:     contact.email      = email
+        if phone         is not None:     contact.phone      = phone
+        if 'address'     in request.form: contact.address    = request.form.get('address',    '').strip() or None
+        if 'company'     in request.form: contact.company    = request.form.get('company',    '').strip() or None
+        if 'job_title'   in request.form: contact.job_title  = request.form.get('job_title',  '').strip() or None
+        if 'notes'       in request.form: contact.notes      = request.form.get('notes',      '').strip() or None
+        if group         is not None:     contact.group      = group
         if 'is_favorite' in request.form:
             contact.is_favorite = request.form.get('is_favorite').lower() == 'true'
 
@@ -326,9 +341,11 @@ def update_contact(contact_id):
 # ── DELETE /api/contacts/<id> ──────────────────────────────────────────────────
 
 @contacts_bp.route('/<int:contact_id>', methods=['DELETE'])
+@jwt_required()
 def delete_contact(contact_id):
     try:
-        contact = db.session.get(Contact, contact_id)
+        uid     = get_current_user_id()
+        contact = Contact.query.filter_by(id=contact_id, user_id=uid).first()
         if not contact:
             return jsonify({'error': 'Contact not found'}), 404
 
@@ -349,13 +366,13 @@ def delete_contact(contact_id):
 
 
 # ── PATCH /api/contacts/<id>/favorite ─────────────────────────────────────────
-# ✅ FIXED: uses contact_schema.dump() instead of contact.to_dict()
-#    contact.to_dict() does not exist — that caused the 500 error
 
 @contacts_bp.route('/<int:contact_id>/favorite', methods=['PATCH'])
+@jwt_required()
 def toggle_favorite(contact_id):
     try:
-        contact = db.session.get(Contact, contact_id)
+        uid     = get_current_user_id()
+        contact = Contact.query.filter_by(id=contact_id, user_id=uid).first()
         if not contact:
             return jsonify({'error': 'Contact not found'}), 404
 
@@ -364,7 +381,7 @@ def toggle_favorite(contact_id):
 
         return jsonify({
             'message': 'Added to favorites' if contact.is_favorite else 'Removed from favorites',
-            'contact': contact_schema.dump(contact)   # ✅ schema.dump, not to_dict()
+            'contact': contact_schema.dump(contact)
         }), 200
 
     except Exception as e:
@@ -372,7 +389,7 @@ def toggle_favorite(contact_id):
         return jsonify({'error': str(e)}), 500
 
 
-# ── Blueprint Error Handlers ───────────────────────────────────────────────────
+# ── Error Handlers ─────────────────────────────────────────────────────────────
 
 @contacts_bp.errorhandler(404)
 def not_found(error):
