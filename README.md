@@ -1,16 +1,26 @@
 # 📒 Contact Book App
 
-A full-stack contact management application built with **React** and **Flask**, featuring a beautiful dark UI, group organization, favorites, profile pictures, and full mobile responsiveness.
+A full-stack **multi-user** contact management application built with **React** and **Flask**, featuring JWT authentication, a beautiful dark UI, group organization, favorites, profile pictures, and full mobile responsiveness.
 
-![Contact Book](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)
+![React](https://img.shields.io/badge/React-18-61DAFB?style=flat&logo=react)
 ![Flask](https://img.shields.io/badge/Flask-2.3-000000?style=flat&logo=flask)
 ![MySQL](https://img.shields.io/badge/MySQL-8.0-4479A1?style=flat&logo=mysql)
 ![TailwindCSS](https://img.shields.io/badge/TailwindCSS-3.0-38B2AC?style=flat&logo=tailwind-css)
+![JWT](https://img.shields.io/badge/JWT-Auth-orange?style=flat&logo=jsonwebtokens)
+
+🌐 **Live Demo:** [contact-book-app-virid.vercel.app](https://contact-book-app-virid.vercel.app)
 
 ---
 
 ## ✨ Features
 
+### 🔐 Authentication
+- **User Registration** — create your own account
+- **User Login** — secure JWT-based authentication
+- **Private contact books** — each user only sees their own contacts
+- **Auto logout** — token expiry handled automatically
+
+### 📋 Contact Management
 - ➕ **Add / Edit / Delete** contacts with full form validation
 - 🔍 **Real-time search** across name, email, phone, company
 - ❤️ **Favorites** — mark and manage favorite contacts
@@ -29,7 +39,7 @@ A full-stack contact management application built with **React** and **Flask**, 
 | Technology | Version | Purpose |
 |-----------|---------|---------|
 | React | 18 | UI framework |
-| Vite | 8 | Build tool |
+| Vite | latest | Build tool |
 | TailwindCSS | 3 | Styling |
 | React Router | 6 | Navigation |
 | Axios | latest | HTTP client |
@@ -39,14 +49,23 @@ A full-stack contact management application built with **React** and **Flask**, 
 |-----------|---------|---------|
 | Python | 3.11+ | Runtime |
 | Flask | 2.3 | Web framework |
+| Flask-JWT-Extended | 4.6 | JWT Authentication |
 | SQLAlchemy | 3.1 | ORM |
 | Flask-Migrate | 4.0 | DB migrations |
 | Marshmallow | 3.20 | Serialization |
 | PyMySQL | 1.1 | MySQL driver |
+| bcrypt | 4.1 | Password hashing |
 | Pillow | 11.1 | Image processing |
+| Gunicorn | 21.2 | Production server |
 
 ### Database
 - **MySQL 8.0**
+
+### Deployment
+| Service | Purpose |
+|---------|---------|
+| Vercel | Frontend hosting |
+| Railway | Backend + MySQL hosting |
 
 ---
 
@@ -57,9 +76,11 @@ contact-book-app/
 ├── backend/
 │   ├── app/
 │   │   ├── models/
+│   │   │   ├── user.py           # User model
 │   │   │   └── contact.py        # Contact model
 │   │   ├── routes/
-│   │   │   └── contacts.py       # REST API endpoints
+│   │   │   ├── auth.py           # Auth endpoints (register/login)
+│   │   │   └── contacts.py       # Contact REST API (JWT protected)
 │   │   ├── schemas/
 │   │   │   └── contact_schema.py # Marshmallow schemas
 │   │   ├── utils/
@@ -68,29 +89,31 @@ contact-book-app/
 │   │   └── __init__.py           # App factory
 │   ├── migrations/               # Alembic migrations
 │   ├── uploads/                  # Profile picture storage
-│   ├── .env                      # Environment variables
 │   ├── requirements.txt
 │   └── run.py
 │
 ├── frontend/
 │   ├── src/
 │   │   ├── api/
-│   │   │   └── contactsApi.js    # Axios API layer
+│   │   │   └── contactsApi.js    # Axios API layer with JWT interceptor
 │   │   ├── components/
 │   │   │   ├── contacts/         # ContactCard, ContactList, ContactModal
-│   │   │   ├── layout/           # Sidebar, Navbar
+│   │   │   ├── layout/           # Sidebar, Navbar, PrivateRoute
 │   │   │   └── ui/               # Button, Toast, Avatar, ConfirmDialog
 │   │   ├── context/
+│   │   │   ├── AuthContext.jsx   # Auth state + JWT management
 │   │   │   └── ContactContext.jsx
 │   │   ├── hooks/
 │   │   │   └── useContacts.js
 │   │   ├── pages/
+│   │   │   ├── Login.jsx
+│   │   │   ├── Register.jsx
 │   │   │   ├── Dashboard.jsx
 │   │   │   ├── Favorites.jsx
 │   │   │   └── Groups.jsx
 │   │   └── utils/
 │   │       └── helpers.js
-│   ├── .env
+│   ├── vercel.json
 │   └── package.json
 │
 └── README.md
@@ -105,36 +128,24 @@ contact-book-app/
 - Python 3.11+
 - MySQL 8.0
 
----
-
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/contact-book-app.git
+git clone https://github.com/abdullaharain-codes/contact-book-app.git
 cd contact-book-app
 ```
-
----
 
 ### 2. Backend Setup
 
 ```bash
 cd backend
-
-# Create virtual environment
 python -m venv venv
-
-# Activate (Windows)
-venv\Scripts\activate
-
-# Activate (Mac/Linux)
-source venv/bin/activate
-
-# Install dependencies
+venv\Scripts\activate        # Windows
+source venv/bin/activate     # Mac/Linux
 pip install -r requirements.txt
 ```
 
-Create your `.env` file:
+Create `backend/.env`:
 
 ```env
 DB_HOST=localhost
@@ -143,6 +154,7 @@ DB_NAME=contact_book
 DB_USER=root
 DB_PASSWORD=your_password_here
 SECRET_KEY=your_secret_key_here
+JWT_SECRET_KEY=your_jwt_secret_key_here
 FLASK_ENV=development
 FLASK_APP=run.py
 UPLOAD_FOLDER=uploads
@@ -150,40 +162,28 @@ MAX_CONTENT_LENGTH=16777216
 FRONTEND_URL=http://localhost:3000
 ```
 
-Set up the database:
-
 ```bash
-# Create database in MySQL
 mysql -u root -p -e "CREATE DATABASE contact_book CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;"
-
-# Run migrations
 flask db upgrade
-
-# Start backend
 python run.py
 ```
 
 Backend runs at: `http://localhost:5000`
 
----
-
 ### 3. Frontend Setup
 
 ```bash
 cd frontend
-
-# Install dependencies
 npm install
 ```
 
-Create your `.env` file:
+Create `frontend/.env`:
 
 ```env
 VITE_API_BASE_URL=http://localhost:5000/api
 ```
 
 ```bash
-# Start frontend
 npm run dev
 ```
 
@@ -193,10 +193,19 @@ Frontend runs at: `http://localhost:3000`
 
 ## 🌐 API Endpoints
 
+### Auth
 | Method | Endpoint | Description |
 |--------|----------|-------------|
-| GET | `/api/contacts/` | Get all contacts (paginated) |
-| POST | `/api/contacts/` | Create new contact |
+| POST | `/api/auth/register` | Register new user |
+| POST | `/api/auth/login` | Login, returns JWT |
+| GET | `/api/auth/me` | Get current user |
+| POST | `/api/auth/logout` | Logout |
+
+### Contacts (🔒 JWT Required)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/contacts/` | Get all contacts |
+| POST | `/api/contacts/` | Create contact |
 | GET | `/api/contacts/:id` | Get single contact |
 | PUT | `/api/contacts/:id` | Update contact |
 | DELETE | `/api/contacts/:id` | Delete contact |
@@ -209,69 +218,52 @@ Frontend runs at: `http://localhost:3000`
 
 ---
 
-## 📸 Screenshots
+## ☁️ Deployment
 
-> Dashboard — All contacts with stats
-> 
-> Groups — Organized contact groups
-> 
-> Mobile — Responsive slide-in sidebar
+### Backend → Railway
+- Root directory: `backend`
+- Build: `pip install -r requirements.txt`
+- Start: `gunicorn run:app --bind 0.0.0.0:$PORT`
+- Pre-deploy: `flask db upgrade`
+- MySQL linked via `MYSQL_URL`
+
+### Frontend → Vercel
+- Framework: Vite
+- Root directory: `frontend`
+- Build: `npm run build`
+- Output: `dist`
 
 ---
 
 ## 🔧 Environment Variables
 
-### Backend `.env`
+### Backend
+| Variable | Description |
+|----------|-------------|
+| `DB_HOST` | MySQL host |
+| `DB_PORT` | MySQL port |
+| `DB_NAME` | Database name |
+| `DB_USER` | MySQL username |
+| `DB_PASSWORD` | MySQL password |
+| `SECRET_KEY` | Flask secret key |
+| `JWT_SECRET_KEY` | JWT signing key |
+| `FLASK_ENV` | `development` or `production` |
+| `FRONTEND_URL` | CORS allowed origin |
 
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `DB_HOST` | MySQL host | `localhost` |
-| `DB_PORT` | MySQL port | `3306` |
-| `DB_NAME` | Database name | `contact_book` |
-| `DB_USER` | MySQL username | `root` |
-| `DB_PASSWORD` | MySQL password | `password` |
-| `SECRET_KEY` | Flask secret key | `your-secret-key` |
-| `FLASK_ENV` | Environment | `development` |
-| `UPLOAD_FOLDER` | Upload directory | `uploads` |
-| `FRONTEND_URL` | CORS origin | `http://localhost:3000` |
-
-### Frontend `.env`
-
-| Variable | Description | Example |
-|----------|-------------|---------|
-| `VITE_API_BASE_URL` | Backend API URL | `http://localhost:5000/api` |
-
----
-
-## 📝 .gitignore
-
-Make sure your `.gitignore` includes:
-
-```
-# Backend
-backend/venv/
-backend/.env
-backend/uploads/*
-!backend/uploads/.gitkeep
-backend/__pycache__/
-backend/**/__pycache__/
-*.pyc
-
-# Frontend
-frontend/node_modules/
-frontend/.env
-frontend/dist/
-
-# General
-.DS_Store
-*.log
-```
+### Frontend
+| Variable | Description |
+|----------|-------------|
+| `VITE_API_BASE_URL` | Backend API URL |
 
 ---
 
 ## 👨‍💻 Author
 
-Built as a portfolio project demonstrating full-stack development with React + Flask + MySQL.
+**Muhammad Abdullah**  
+Full-stack portfolio project — React + Flask + MySQL + JWT Authentication.
+
+- GitHub: [@abdullaharain-codes](https://github.com/abdullaharain-codes)
+- Live: [contact-book-app-virid.vercel.app](https://contact-book-app-virid.vercel.app)
 
 ---
 
