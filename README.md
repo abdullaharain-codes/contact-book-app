@@ -47,8 +47,8 @@ A full-stack **multi-user** contact management application built with **React** 
 ### Backend
 | Technology | Version | Purpose |
 |-----------|---------|---------|
-| Python | 3.11+ | Runtime |
-| Flask | 2.3 | Web framework |
+| Python | 3.11.+ | Runtime |
+| Flask | 2.3 | Web Framework |
 | Flask-JWT-Extended | 4.6 | JWT Authentication |
 | SQLAlchemy | 3.1 | ORM |
 | Flask-Migrate | 4.0 | DB migrations |
